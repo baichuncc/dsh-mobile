@@ -1,0 +1,84 @@
+name: AYOU Debug APK
+
+# Builds the "阿柚 AYOU" debug APK with the full iroh native transport.
+# Debug variant => applicationId io.github.sayach.dshmobile.debug, installs beside
+# the official app and keeps its own pairing data. No signing secrets are required.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ayou-appearance']
+
+permissions:
+  contents: read
+
+jobs:
+  debug-iroh:
+    name: Debug APK with full iroh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+
+      - name: Install Android API 36, build-tools and NDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;25.2.9519653"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Confirm the AYOU appearance changes are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'LauncherAyou' apps/mobile/android/app/src/main/AndroidManifest.xml
+          grep -q 'ayou_connecting' apps/mobile/android/app/src/main/java/io/github/sayach/dshmobile/MainActivity.kt
+          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_connecting.png
+          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_connected.png
+          echo "AYOU markers present"
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+        working-directory: apps/mobile/android
+
+      - name: Assemble debug APK with full iroh
+        run: ./gradlew --no-daemon :app:assembleDebug -PirohNative=true -PirohNdk="$ANDROID_HOME/ndk/25.2.9519653"
+        working-directory: apps/mobile/android
+
+      - name: Verify package id, iroh native libs and debug signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$apk"
+          echo "== badging =="
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | head -n 4
+          echo "== iroh .so =="
+          unzip -l "$apk" | grep -E 'libdsh_mobile_iroh_android_transport\.so' || { echo "iroh native library missing" >&2; exit 1; }
+          echo "== signature =="
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          "$apksigner" verify --verbose --print-certs "$apk" | head -n 12
+          echo "== sha256 =="
+          sha256sum "$apk"
+          echo "== size =="
+          stat -c %s "$apk"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ayou-debug-iroh
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
