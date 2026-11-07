@@ -2,7 +2,11 @@
 <resources>
     <string name="app_name">阿柚 AYOU</string>
     <string name="ayou_connecting">Finding Ayou…</string>
+    <string name="ayou_connecting_sub">Hmm… let me see where you are</string>
+    <string name="ayou_connecting_chip">Connecting</string>
     <string name="ayou_connected">Found you! Welcome back～</string>
+    <string name="ayou_connected_sub">Connected, opening the chat</string>
+    <string name="ayou_connected_chip">Connected</string>
     <string name="connection_center_title">Choose a connection</string>
     <string name="connection_center_description">Local and remote access are configured separately. Choose how this phone should reach your computer.</string>
     <string name="background_restore_running">Restoring the last connection in the background. You can choose a connection below now.</string>

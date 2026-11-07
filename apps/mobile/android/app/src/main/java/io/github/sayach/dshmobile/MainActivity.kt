@@ -48,6 +48,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -606,8 +607,7 @@ class MainActivity : Activity() {
             // Receive unconsumed Insets before the real page while still drawing above it.
             translationZ = dp(1).toFloat()
         }
-        // The AYOU sheet already carries its title, hint and status pill; only the
-        // interactive cancel control is layered on top, inside the safe area.
+        // Four background/character layers plus a real text + cancel stack in the safe area.
         addConnectionArtwork(waiting)
         for (index in 0 until waiting.childCount) waiting.getChildAt(index).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         val cancel = secondaryButton(
@@ -615,15 +615,31 @@ class MainActivity : Activity() {
             48,
         ) { connectionAttempts.cancel(attempt) }
         connectionCancelButton = cancel
+        val connectStack = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            addView(
+                ayouConnectText(AyouConnectVisual.CONNECTING, alignLeft = usesLandscapeConnectLayout()),
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+            addView(
+                cancel,
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = dp(20)
+                },
+            )
+        }
         val cancelHost = FrameLayout(this).apply {
-            addView(cancel, FrameLayout.LayoutParams(
+            addView(connectStack, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER,
+                if (usesLandscapeConnectLayout()) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.CENTER,
             ))
         }
         waiting.addView(cancelHost, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(120), Gravity.BOTTOM,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            if (usesLandscapeConnectLayout()) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.BOTTOM,
         ))
         waiting.setOnApplyWindowInsetsListener { _, insets ->
             val edges = resolveWebViewSafeArea(insets)
@@ -791,19 +807,32 @@ class MainActivity : Activity() {
         connectionFullWaitingView = null
         connectionCancelButton = null
         val overlay = FrameLayout(this).apply {
-            setBackgroundColor(getColor(R.color.ayou_splash_bg))
             isClickable = true
             contentDescription = getString(R.string.ayou_connected)
             translationZ = dp(2).toFloat()
-            addView(
-                ImageView(this@MainActivity).apply {
-                    setImageResource(R.drawable.ayou_connected)
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                },
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
-            )
             setOnClickListener { dismissAyouConnected() }
+        }
+        addAyouConnectLayers(overlay, AyouConnectVisual.CONNECTED)
+        val landscape = usesLandscapeConnectLayout()
+        val successHost = FrameLayout(this).apply {
+            addView(
+                ayouConnectText(AyouConnectVisual.CONNECTED, alignLeft = landscape),
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    if (landscape) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.CENTER,
+                ),
+            )
+        }
+        overlay.addView(successHost, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            if (landscape) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.BOTTOM,
+        ))
+        overlay.setOnApplyWindowInsetsListener { _, insets ->
+            val edges = resolveWebViewSafeArea(insets)
+            successHost.setPadding(dp(24) + edges.left, 0, dp(24) + edges.right, dp(32) + edges.bottom)
+            insets
         }
         ayouConnectedOverlay = overlay
         container.addView(overlay, FrameLayout.LayoutParams(
@@ -2018,19 +2047,129 @@ class MainActivity : Activity() {
         )
     }
 
+    private enum class AyouConnectVisual { CONNECTING, CONNECTED }
+
+    /** Wide windows get the side-by-side composition; everything else stacks. */
+    private fun usesLandscapeConnectLayout(): Boolean {
+        val metrics = resources.displayMetrics
+        return metrics.widthPixels > metrics.heightPixels
+    }
+
+    private fun isConnectTablet(): Boolean = resources.configuration.smallestScreenWidthDp >= 600
+
     /**
-     * Full-screen "finding Ayou" sheet. The artwork already contains the title, hint and
-     * status pill, so no native label is layered over it; only the cancel control is added
-     * by the caller. FIT_CENTER keeps the character and text inside every screen ratio.
+     * Four-layer AYOU connect scene: gradient wash, room background, cream scrim and the
+     * transparent character. Text and controls stay real views added by the caller.
      */
     private fun addConnectionArtwork(root: FrameLayout) {
+        addAyouConnectLayers(root, AyouConnectVisual.CONNECTING)
+    }
+
+    private fun addAyouConnectLayers(root: FrameLayout, state: AyouConnectVisual) {
+        val landscape = usesLandscapeConnectLayout()
+        root.setBackgroundResource(R.drawable.ayou_connect_bg)
+        val scene = AyouSceneView(this).apply {
+            anchorX = when {
+                landscape -> 0.5f
+                isConnectTablet() -> 0.18f
+                else -> 0.22f
+            }
+            setImageResource(R.drawable.ayou_room_scene)
+        }
         root.addView(
-            ImageView(this).apply {
-                setImageResource(R.drawable.ayou_connecting)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-            },
+            scene,
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
+        root.addView(
+            View(this).apply { setBackgroundResource(R.drawable.ayou_connect_scrim) },
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+        val character = AyouCharacterView(this).apply {
+            if (landscape) {
+                heightFraction = 0.86f
+                centerXFraction = 0.25f
+                topFraction = 0.07f
+            } else {
+                heightFraction = if (isConnectTablet()) 0.66f else 0.70f
+                centerXFraction = 0.5f
+                topFraction = 0.10f
+            }
+            setImageResource(
+                if (state == AyouConnectVisual.CONNECTING) R.drawable.ayou_character_connecting
+                else R.drawable.ayou_character_connected,
+            )
+        }
+        root.addView(
+            character,
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+    }
+
+    /** Real text layer: title, subtitle and a status pill with a live progress indicator. */
+    private fun ayouConnectText(state: AyouConnectVisual, alignLeft: Boolean): LinearLayout {
+        val connecting = state == AyouConnectVisual.CONNECTING
+        val accent = if (connecting) getColor(R.color.app_accent) else getColor(R.color.app_success)
+        val stack = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = if (alignLeft) Gravity.START else Gravity.CENTER_HORIZONTAL
+        }
+        stack.addView(
+            textView(
+                if (connecting) R.string.ayou_connecting else R.string.ayou_connected,
+                24f,
+                Typeface.BOLD,
+            ),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+        )
+        stack.addView(
+            textView(
+                if (connecting) R.string.ayou_connecting_sub else R.string.ayou_connected_sub,
+                14f,
+                Typeface.NORMAL,
+                R.color.app_secondary,
+            ),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(6)
+            },
+        )
+        val pill = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = resources.getDrawable(R.drawable.ayou_connect_chip, theme)
+            setPadding(dp(14), dp(6), dp(14), dp(6))
+        }
+        if (connecting) {
+            pill.addView(
+                ProgressBar(this).apply { indeterminateTintList = ColorStateList.valueOf(accent) },
+                LinearLayout.LayoutParams(dp(16), dp(16)),
+            )
+            pill.addView(View(this), LinearLayout.LayoutParams(dp(8), 1))
+        } else {
+            pill.addView(
+                TextView(this).apply {
+                    text = "✓"
+                    textSize = 14f
+                    setTextColor(accent)
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+            pill.addView(View(this), LinearLayout.LayoutParams(dp(6), 1))
+        }
+        pill.addView(
+            TextView(this).apply {
+                setText(if (connecting) R.string.ayou_connecting_chip else R.string.ayou_connected_chip)
+                textSize = 13f
+                setTextColor(accent)
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+        )
+        stack.addView(
+            pill,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(16)
+            },
+        )
+        return stack
     }
 
     /** Reconnect to a manually entered origin, falling back to pairing when unknown. */

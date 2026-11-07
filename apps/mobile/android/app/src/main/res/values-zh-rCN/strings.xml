@@ -2,7 +2,11 @@
 <resources>
     <string name="app_name">阿柚 AYOU</string>
     <string name="ayou_connecting">正在寻找阿柚……</string>
+    <string name="ayou_connecting_sub">唔……让我找找你在哪儿</string>
+    <string name="ayou_connecting_chip">正在连接</string>
     <string name="ayou_connected">找到啦！欢迎回来～</string>
+    <string name="ayou_connected_sub">连接成功，正在进入聊天</string>
+    <string name="ayou_connected_chip">连接成功</string>
     <string name="connection_center_title">选择连接方式</string>
     <string name="connection_center_description">局域网与远程访问彼此独立。请选择手机这次连接电脑的方式。</string>
     <string name="background_restore_running">正在后台恢复上次连接；你也可以直接选择下面的连接方式。</string>

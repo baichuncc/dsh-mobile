@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Soft cream vignette: keeps the status bar and the button area readable without a panel. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="270"
+        android:centerColor="#00FFF6EA"
+        android:endColor="#B0FFF6EA"
+        android:startColor="#96FFF6EA"
+        android:type="linear" />
+</shape>
