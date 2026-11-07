@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cream background sampled from the hand-drawn AYOU source art. -->
     <color name="ic_ayou_bg">#FEF2E1</color>
+    <!-- Cream edge sampled from the AYOU connect/success design sheets; letterbox fill. -->
+    <color name="ayou_splash_bg">#FEF8F1</color>
 </resources>

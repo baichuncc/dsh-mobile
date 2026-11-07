@@ -48,7 +48,6 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
-import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -600,62 +599,41 @@ class MainActivity : Activity() {
             getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(focused.windowToken, 0)
         }
         val waiting = FrameLayout(this).apply {
-            setBackgroundColor(getColor(R.color.app_background))
+            setBackgroundColor(getColor(R.color.ayou_splash_bg))
             isClickable = true
             isFocusableInTouchMode = true
             accessibilityPaneTitle = message
             // Receive unconsumed Insets before the real page while still drawing above it.
             translationZ = dp(1).toFloat()
         }
-        addSetupArtwork(waiting)
+        // The AYOU sheet already carries its title, hint and status pill; only the
+        // interactive cancel control is layered on top, inside the safe area.
+        addConnectionArtwork(waiting)
         for (index in 0 until waiting.childCount) waiting.getChildAt(index).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            clipToPadding = false
-            setPadding(dp(32), dp(32), dp(32), dp(32))
+        val cancel = secondaryButton(
+            if (preserveBrowser == null) R.string.connection_cancel else R.string.connection_stop_reconnecting,
+            48,
+        ) { connectionAttempts.cancel(attempt) }
+        connectionCancelButton = cancel
+        val cancelHost = FrameLayout(this).apply {
+            addView(cancel, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER,
+            ))
         }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            addView(ProgressBar(this@MainActivity).apply {
-                indeterminateTintList = ColorStateList.valueOf(getColor(R.color.app_accent))
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(dp(48), dp(48)))
-            addView(spacer(16))
-            addView(TextView(this@MainActivity).apply {
-                text = message
-                textSize = 16f
-                gravity = Gravity.CENTER
-                setTextColor(getColor(R.color.app_secondary))
-                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            addView(spacer(24))
-            val cancel = secondaryButton(
-                if (preserveBrowser == null) R.string.connection_cancel else R.string.connection_stop_reconnecting,
-                48,
-            ) { connectionAttempts.cancel(attempt) }
-            connectionCancelButton = cancel
-            addView(cancel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
-        scroll.addView(content, FrameLayout.LayoutParams(
-            min((resources.displayMetrics.widthPixels - dp(64)).coerceAtLeast(1), dp(400)),
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER_HORIZONTAL,
+        waiting.addView(cancelHost, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(120), Gravity.BOTTOM,
         ))
-        scroll.addOnLayoutChangeListener { _, left, _, right, _, _, _, _, _ ->
-            val width = (right - left - scroll.paddingLeft - scroll.paddingRight).coerceIn(1, dp(400))
-            if (content.layoutParams.width != width) content.layoutParams = content.layoutParams.apply { this.width = width }
-        }
-        waiting.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         waiting.setOnApplyWindowInsetsListener { _, insets ->
             val edges = resolveWebViewSafeArea(insets)
-            scroll.setPadding(dp(32) + edges.left, dp(32) + edges.top, dp(32) + edges.right, dp(32) + edges.bottom)
+            cancelHost.setPadding(dp(24) + edges.left, 0, dp(24) + edges.right, dp(16) + edges.bottom)
             insets
         }
         connectionWaitingView = waiting
         connectionFullWaitingView = waiting
         connectionFullCancelButton = connectionCancelButton
-        applyStatusBarIconContrast(window, getColor(R.color.app_background))
+        applyStatusBarIconContrast(window, getColor(R.color.ayou_splash_bg))
         attachConnectionWaitingView()
         return attempt
     }
@@ -759,6 +737,8 @@ class MainActivity : Activity() {
         loadingDocumentGeneration = null
         pageReadyCheck?.let(restoreUiHandler::removeCallbacks)
         pageReadyCheck = null
+        ayouConnectedOverlay?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        ayouConnectedOverlay = null
         detachConnectionWaitingView()
         connectionWaitingView = null
         connectionCancelButton = null
@@ -769,12 +749,15 @@ class MainActivity : Activity() {
             else preferences.getInt(PREFERENCE_WEB_CHROME_COLOR, getColor(R.color.app_background)))
     }
 
-    private fun finishConnectionAttempt(attempt: ConnectionAttemptController.Attempt? = pendingConnection) {
+    private fun finishConnectionAttempt(
+        attempt: ConnectionAttemptController.Attempt? = pendingConnection,
+        showWelcome: Boolean = false,
+    ) {
         if (attempt != null && connectionAttempts.finish(attempt)) {
             restoreAttemptGate.completeRestore(restoreGeneration)
             pendingConnection = null
             connectionCancellationAction = null
-            dismissConnectionProgress()
+            if (showWelcome) showAyouConnectedThenDismiss() else dismissConnectionProgress()
         }
     }
 
@@ -786,10 +769,52 @@ class MainActivity : Activity() {
         dismissConnectionProgress()
     }
 
-    /** Brief AYOU welcome after a successful first-page connection; purely cosmetic, never blocks. */
-    private fun showAyouWelcome() {
+    /** Brief AYOU welcome overlay after a successful first-page connection; purely cosmetic, never blocks. */
+    private var ayouConnectedOverlay: FrameLayout? = null
+
+    private fun showAyouConnectedThenDismiss() {
+        if (isFinishing || isDestroyed) {
+            dismissConnectionProgress()
+            return
+        }
+        val container = findViewById<FrameLayout>(android.R.id.content) ?: run {
+            dismissConnectionProgress()
+            return
+        }
+        detachConnectionWaitingView()
+        // Keep the connection-waiting machinery from resurrecting the sheet over the welcome.
+        connectionWaitingView = null
+        connectionFullWaitingView = null
+        connectionCancelButton = null
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(getColor(R.color.ayou_splash_bg))
+            isClickable = true
+            contentDescription = getString(R.string.ayou_connected)
+            translationZ = dp(2).toFloat()
+            addView(
+                ImageView(this@MainActivity).apply {
+                    setImageResource(R.drawable.ayou_connected)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+            )
+            setOnClickListener { dismissAyouConnected() }
+        }
+        ayouConnectedOverlay = overlay
+        container.addView(overlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+        applyStatusBarIconContrast(window, getColor(R.color.ayou_splash_bg))
+        overlay.postDelayed({ dismissAyouConnected() }, AYOU_CONNECTED_MS)
+    }
+
+    private fun dismissAyouConnected() {
+        val overlay = ayouConnectedOverlay ?: return
+        (overlay.parent as? ViewGroup)?.removeView(overlay)
+        ayouConnectedOverlay = null
         if (isFinishing || isDestroyed) return
-        Toast.makeText(this, R.string.ayou_connected, Toast.LENGTH_SHORT).show()
+        dismissConnectionProgress()
     }
 
     /** A stopped recovery keeps usable content, not a blank/error document with no controls. */
@@ -1985,6 +2010,21 @@ class MainActivity : Activity() {
         )
         root.addView(
             View(this).apply { setBackgroundColor(getColor(R.color.app_setup_scrim)) },
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+        )
+    }
+
+    /**
+     * Full-screen "finding Ayou" sheet. The artwork already contains the title, hint and
+     * status pill, so no native label is layered over it; only the cancel control is added
+     * by the caller. FIT_CENTER keeps the character and text inside every screen ratio.
+     */
+    private fun addConnectionArtwork(root: FrameLayout) {
+        root.addView(
+            ImageView(this).apply {
+                setImageResource(R.drawable.ayou_connecting)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            },
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
     }
@@ -3412,8 +3452,7 @@ class MainActivity : Activity() {
             if (mounted) {
                 if (secureWebViewClient?.confirmContentReady(documentGeneration) == true) {
                     nativeBridge?.injectPage()
-                    finishConnectionAttempt(attempt)
-                    showAyouWelcome()
+                    finishConnectionAttempt(attempt, showWelcome = true)
                 }
             }
             else {
@@ -4235,6 +4274,7 @@ class MainActivity : Activity() {
         const val LIVE_DOCUMENT_PROBE_TIMEOUT_MS = 2_000L
         const val MOBILE_BACK_TIMEOUT_MS = 1_500L
         const val PAGE_READY_POLL_MS = 250L
+        const val AYOU_CONNECTED_MS = 1_800L
         const val LAN_CONNECTION_BUDGET_MS = 30_000L
         const val REMOTE_CONNECTION_BUDGET_MS = 60_000L
         const val APP_RELEASES_URL = "https://github.com/saya-ch/dsh-mobile/releases/latest"
