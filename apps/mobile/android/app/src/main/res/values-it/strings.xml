@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DeepSeek Harness</string>
+    <string name="app_name">阿柚 AYOU</string>
+    <string name="ayou_connecting">Ti sto cercando…</string>
+    <string name="ayou_connected">Trovato! Bentornato～</string>
     <string name="connection_center_title">Scegli una connessione</string>
     <string name="connection_center_description">L\'accesso locale e quello remoto sono configurati separatamente. Scegli come collegare questo telefono al computer.</string>
     <string name="background_restore_running">Ripristino dell\'ultima connessione in background. Puoi già scegliere una connessione qui sotto.</string>
@@ -179,6 +181,7 @@
     <string name="back_page_unresponsive">La pagina non risponde. Riprova a tornare indietro.</string>
     <string name="icon_settings">Icona dell\'app</string>
     <string name="icon_settings_saved">Icona aggiornata. Alcuni launcher potrebbero aggiornarsi dopo un attimo.</string>
+    <string name="icon_choice_ayou">Ayou</string>
     <string name="icon_choice_whale_girl">Mascotte balena DSH</string>
     <string name="icon_choice_official_whale">Balena DeepSeek (blu)</string>
     <string name="icon_choice_official_whale_dark">Balena DeepSeek (blu scuro)</string>

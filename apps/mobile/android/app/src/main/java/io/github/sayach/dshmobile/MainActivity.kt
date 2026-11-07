@@ -558,7 +558,7 @@ class MainActivity : Activity() {
     /** Own the complete user wait, including queued work, retries, cookies and initial page boot. */
     private fun startConnectionAttempt(
         mode: AccessMode,
-        message: CharSequence = getString(R.string.restoring_trust),
+        message: CharSequence = getString(R.string.ayou_connecting),
         preserveBrowser: WebView? = null,
         keepVisibleDocument: Boolean = false,
         onCancelled: (ConnectionAttemptController.Reason) -> Unit = { showConnectionCenter() },
@@ -784,6 +784,12 @@ class MainActivity : Activity() {
         pendingConnection = null
         connectionCancellationAction = null
         dismissConnectionProgress()
+    }
+
+    /** Brief AYOU welcome after a successful first-page connection; purely cosmetic, never blocks. */
+    private fun showAyouWelcome() {
+        if (isFinishing || isDestroyed) return
+        Toast.makeText(this, R.string.ayou_connected, Toast.LENGTH_SHORT).show()
     }
 
     /** A stopped recovery keeps usable content, not a blank/error document with no controls. */
@@ -1284,6 +1290,7 @@ class MainActivity : Activity() {
     private fun showIconSettings() {
         val keys = LauncherIconPolicy.icons.map { it.key }
         val labels = arrayOf(
+            getString(R.string.icon_choice_ayou),
             getString(R.string.icon_choice_whale_girl),
             getString(R.string.icon_choice_official_whale),
             getString(R.string.icon_choice_official_whale_dark),
@@ -1971,7 +1978,7 @@ class MainActivity : Activity() {
     private fun addSetupArtwork(root: FrameLayout) {
         root.addView(
             ImageView(this).apply {
-                setImageResource(R.drawable.setup_background_image)
+                setImageResource(R.drawable.ayou_splash)
                 scaleType = ImageView.ScaleType.CENTER_CROP
             },
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
@@ -3135,7 +3142,7 @@ class MainActivity : Activity() {
         }
         if (requestedDevice?.iroh != null && !hasIrohTransport(requestedDevice.iroh)) {
             val transportAttempt = pendingConnection ?: startConnectionAttempt(mode,
-                message = getString(R.string.connecting_to_device, requestedDevice.displayName), preserveBrowser = preserveWebView)
+                message = getString(R.string.ayou_connecting), preserveBrowser = preserveWebView)
             val carrierReady = restoreAttemptGate.connectionCallback(generation, connectionAttempts, transportAttempt) {
                 restoreTrustedDevice(preferredOrigin, credential, mode, generation, deviceKey, preserveWebView, deferActivation, claimSuccess, onActivated, onAuthenticated, requestIsCurrent, allowOriginRediscovery, onSessionInstalled, onUnavailable, onFailure)
             }
@@ -3164,8 +3171,7 @@ class MainActivity : Activity() {
         }
         val attempt = pendingConnection ?: startConnectionAttempt(
             mode,
-            message = requestedDevice?.let { getString(R.string.connecting_to_device, it.displayName) }
-                ?: getString(R.string.restoring_trust),
+            message = getString(R.string.ayou_connecting),
             preserveBrowser = preserveWebView,
         )
         if (!restoreAttemptGate.claimRestore(generation)) return
@@ -3407,6 +3413,7 @@ class MainActivity : Activity() {
                 if (secureWebViewClient?.confirmContentReady(documentGeneration) == true) {
                     nativeBridge?.injectPage()
                     finishConnectionAttempt(attempt)
+                    showAyouWelcome()
                 }
             }
             else {

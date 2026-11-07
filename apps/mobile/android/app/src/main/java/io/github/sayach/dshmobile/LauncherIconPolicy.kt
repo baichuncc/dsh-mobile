@@ -6,6 +6,7 @@ internal object LauncherIconPolicy {
     data class Change(val icon: Icon, val state: Int)
 
     val icons = listOf(
+        Icon("ayou", "LauncherAyou"),
         Icon("whale_girl", "LauncherWhaleGirl"),
         Icon("official_whale", "LauncherOfficialWhale"),
         Icon("official_whale_dark", "LauncherOfficialWhaleDark"),
