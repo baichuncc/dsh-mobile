@@ -670,12 +670,16 @@ class MainActivity : Activity() {
         container.requestApplyInsets()
     }
 
-    /** A committed page renders its own progress; native cancellation remains until it is usable. */
+    /**
+     * The designed "finding Ayou" sheet stays in front until the first page is genuinely
+     * usable, so the branded connecting state covers transport, auth and service boot.
+     * Cancellation and the connect budget stay on the sheet; the page loads underneath.
+     */
     private fun revealConnectionPage(browser: WebView, attempt: ConnectionAttemptController.Attempt, generation: Int) {
         if (connectionPageVisible || loadingConnectionAttempt !== attempt || !connectionAttempts.isCurrent(attempt)
             || loadingDocumentGeneration != generation || secureWebViewClient?.currentDocumentGeneration != generation
             || webView !== browser || isFinishing || isDestroyed) return
-        showCompactConnectionWaiting(attempt)
+        // Intentionally no compact overlay: the full AYOU sheet already owns the cancel control.
     }
 
     /** A visible page retains input focus; only the native cancellation control overlays its content. */
