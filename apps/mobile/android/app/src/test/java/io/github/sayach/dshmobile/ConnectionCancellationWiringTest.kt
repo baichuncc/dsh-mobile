@@ -10,8 +10,8 @@ class ConnectionCancellationWiringTest {
     @Test fun cancellationIsVisibleImmediatelyAndSystemBackUsesTheSameOwner() {
         val source = activitySource()
         val start = method(source, "startConnectionAttempt")
-        assertTrue(start.contains("addSetupArtwork(waiting)"))
-        assertTrue(start.contains("ProgressBar(this@MainActivity)"))
+        assertTrue(start.contains("addConnectionArtwork(waiting)"))
+        assertFalse("The AYOU sheet carries its own status indicator", start.contains("ProgressBar"))
         assertTrue(Regex("secondaryButton\\(\\s*if \\(preserveBrowser == null\\) R\\.string\\.connection_cancel else R\\.string\\.connection_stop_reconnecting,\\s*48,").containsMatchIn(start))
         assertTrue(start.contains("{ connectionAttempts.cancel(attempt) }"))
         assertTrue(start.contains("attachConnectionWaitingView()"))
@@ -90,7 +90,7 @@ class ConnectionCancellationWiringTest {
         }
         val waiting = method(source, "startConnectionAttempt")
         assertTrue(waiting.contains("resolveWebViewSafeArea(insets)"))
-        assertTrue(waiting.contains("scroll.setPadding(dp(32) + edges.left"))
+        assertTrue(waiting.contains("cancelHost.setPadding(dp(24) + edges.left"))
         val attach = method(source, "attachConnectionWaitingView")
         assertTrue(attach.contains("waiting.dispatchApplyWindowInsets(it)"))
         assertTrue(attach.contains("container.requestApplyInsets()"))
@@ -135,7 +135,7 @@ class ConnectionCancellationWiringTest {
         val readiness = method(source, "finishConnectionWhenPageReady")
         assertTrue(readiness.contains("probeMountedDshPage(browser, origin, INITIAL_DSH_READY_PROBE)"))
         assertTrue(readiness.contains("secureWebViewClient?.confirmContentReady(documentGeneration) == true"))
-        assertTrue(readiness.indexOf("confirmContentReady(documentGeneration)") < readiness.indexOf("finishConnectionAttempt(attempt)"))
+        assertTrue(readiness.indexOf("confirmContentReady(documentGeneration)") < readiness.indexOf("finishConnectionAttempt(attempt, showWelcome = true)"))
         assertTrue(readiness.contains("connectionAttempts.isCurrent(attempt)"))
         assertTrue(readiness.contains("loadingConnectionAttempt !== attempt"))
         assertTrue(method(source, "recoverAutomatically").contains("loadingConnectionAttempt = null"))
@@ -166,37 +166,35 @@ class ConnectionCancellationWiringTest {
 
     @Test fun revealingACommittedPageRetainsCancellationAndItsOriginalConnectionDeadline() {
         val source = activitySource()
-        assertTrue(method(source, "revealConnectionPage").contains("showCompactConnectionWaiting(attempt)"))
-        val reveal = method(source, "showCompactConnectionWaiting")
-        assertTrue(reveal.contains("detachConnectionWaitingView()"))
-        assertTrue(reveal.contains("connectionPageVisible = true"))
-        assertTrue(reveal.contains("attachConnectionWaitingView()"))
-        val compact = reveal.substringAfter("val compact = FrameLayout(this)").substringBefore("connectionPageVisible = true")
-        assertFalse("Compact cancellation must not paint over the webpage", compact.contains("setBackgroundColor"))
-        assertFalse("An empty part of the compact container must pass touches to the webpage", compact.contains("isClickable = true"))
-        assertFalse("Showing compact cancellation must not request webpage focus", compact.contains("isFocusableInTouchMode = true"))
-        assertFalse(compact.contains("requestFocus()"))
-        assertTrue(reveal.contains("connectionCancelButton"))
-        assertTrue(reveal.contains("Gravity.BOTTOM"))
-        assertTrue(reveal.contains("Gravity.END"))
-        assertTrue(reveal.contains("ViewGroup.LayoutParams.WRAP_CONTENT"))
-        assertTrue("The compact button retains initial-connection and reconnect labels", reveal.contains("if (stopReconnecting) R.string.connection_stop_reconnecting else R.string.connection_cancel"))
-        assertTrue("The compact button must retain the current attempt's explicit cancellation", Regex("secondaryButton\\([\\s\\S]*?48,\\s*\\) \\{ connectionAttempts.cancel\\(attempt\\) }").containsMatchIn(reveal))
-        assertTrue(reveal.indexOf("connectionPageVisible = true") < reveal.indexOf("attachConnectionWaitingView()"))
+        val reveal = method(source, "revealConnectionPage")
+        assertFalse("The branded sheet stays in front until the page is genuinely usable", reveal.contains("showCompactConnectionWaiting(attempt)"))
         for (operation in listOf("finishConnectionAttempt(", "confirmContentReady(", "connectionAttempts.finish(", "dismissConnectionProgress()", "pendingConnection =", "loadingConnectionAttempt =", "pageReadyCheck =", ".stopLoading()")) {
             assertFalse("Revealing committed content is not authentication or application completion: $operation", reveal.contains(operation))
         }
+        val compact = method(source, "showCompactConnectionWaiting")
+        assertTrue(compact.contains("detachConnectionWaitingView()"))
+        assertTrue(compact.contains("connectionPageVisible = true"))
+        assertTrue(compact.contains("attachConnectionWaitingView()"))
+        val body = compact.substringAfter("val compact = FrameLayout(this)").substringBefore("connectionPageVisible = true")
+        assertFalse("Compact cancellation must not paint over the webpage", body.contains("setBackgroundColor"))
+        assertFalse("An empty part of the compact container must pass touches to the webpage", body.contains("isClickable = true"))
+        assertFalse("Showing compact cancellation must not request webpage focus", body.contains("isFocusableInTouchMode = true"))
+        assertFalse(body.contains("requestFocus()"))
+        assertTrue(compact.contains("connectionCancelButton"))
+        assertTrue(compact.contains("Gravity.BOTTOM"))
+        assertTrue(compact.contains("Gravity.END"))
+        assertTrue(compact.contains("ViewGroup.LayoutParams.WRAP_CONTENT"))
+        assertTrue("The compact button retains initial-connection and reconnect labels", compact.contains("if (stopReconnecting) R.string.connection_stop_reconnecting else R.string.connection_cancel"))
+        assertTrue("The compact button must retain the current attempt's explicit cancellation", Regex("secondaryButton\\([\\s\\S]*?48,\\s*\\) \\{ connectionAttempts.cancel\\(attempt\\) }").containsMatchIn(compact))
+        assertTrue(compact.indexOf("connectionPageVisible = true") < compact.indexOf("attachConnectionWaitingView()"))
     }
 
     @Test fun aLateCommitCannotRevealAnotherBrowserDocumentOrThePageOfAPendingNativeRenewal() {
         val reveal = method(activitySource(), "revealConnectionPage")
-        val detach = reveal.indexOf("showCompactConnectionWaiting(attempt)")
-        assertTrue(detach >= 0)
         for (condition in listOf("webView !== browser", "loadingConnectionAttempt !== attempt", "connectionAttempts.isCurrent(attempt)", "currentDocumentGeneration")) {
-            val guard = reveal.indexOf(condition)
-            assertTrue("Missing committed-page owner guard: $condition", guard >= 0)
-            assertTrue("$condition must be checked before changing the visible page", guard < detach)
+            assertTrue("Missing committed-page owner guard: $condition", reveal.contains(condition))
         }
+        assertFalse("The branded sheet is never swapped for a late document", reveal.contains("showCompactConnectionWaiting(attempt)"))
         assertFalse("A retained old document cannot reveal or finish a pending native request", reveal.contains("pendingConnection ?:"))
     }
 
