@@ -629,17 +629,15 @@ class MainActivity : Activity() {
                 },
             )
         }
-        val cancelHost = FrameLayout(this).apply {
+        val cancelHost = AyouConnectStackHost(this).apply {
             addView(connectStack, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                if (usesLandscapeConnectLayout()) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.CENTER,
             ))
         }
         waiting.addView(cancelHost, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            if (usesLandscapeConnectLayout()) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.BOTTOM,
+            ViewGroup.LayoutParams.MATCH_PARENT,
         ))
         waiting.setOnApplyWindowInsetsListener { _, insets ->
             val edges = resolveWebViewSafeArea(insets)
@@ -813,21 +811,18 @@ class MainActivity : Activity() {
             setOnClickListener { dismissAyouConnected() }
         }
         addAyouConnectLayers(overlay, AyouConnectVisual.CONNECTED)
-        val landscape = usesLandscapeConnectLayout()
-        val successHost = FrameLayout(this).apply {
+        val successHost = AyouConnectStackHost(this).apply {
             addView(
-                ayouConnectText(AyouConnectVisual.CONNECTED, alignLeft = landscape),
+                ayouConnectText(AyouConnectVisual.CONNECTED, alignLeft = usesLandscapeConnectLayout()),
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.WRAP_CONTENT,
                     FrameLayout.LayoutParams.WRAP_CONTENT,
-                    if (landscape) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.CENTER,
                 ),
             )
         }
         overlay.addView(successHost, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            if (landscape) Gravity.END or Gravity.CENTER_VERTICAL else Gravity.BOTTOM,
+            ViewGroup.LayoutParams.MATCH_PARENT,
         ))
         overlay.setOnApplyWindowInsetsListener { _, insets ->
             val edges = resolveWebViewSafeArea(insets)
@@ -2055,8 +2050,6 @@ class MainActivity : Activity() {
         return metrics.widthPixels > metrics.heightPixels
     }
 
-    private fun isConnectTablet(): Boolean = resources.configuration.smallestScreenWidthDp >= 600
-
     /**
      * Four-layer AYOU connect scene: gradient wash, room background, cream scrim and the
      * transparent character. Text and controls stay real views added by the caller.
@@ -2066,14 +2059,8 @@ class MainActivity : Activity() {
     }
 
     private fun addAyouConnectLayers(root: FrameLayout, state: AyouConnectVisual) {
-        val landscape = usesLandscapeConnectLayout()
         root.setBackgroundResource(R.drawable.ayou_connect_bg)
         val scene = AyouSceneView(this).apply {
-            anchorX = when {
-                landscape -> 0.5f
-                isConnectTablet() -> 0.18f
-                else -> 0.22f
-            }
             setImageResource(R.drawable.ayou_room_scene)
         }
         root.addView(
@@ -2085,15 +2072,6 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
         val character = AyouCharacterView(this).apply {
-            if (landscape) {
-                heightFraction = 0.86f
-                centerXFraction = 0.25f
-                topFraction = 0.07f
-            } else {
-                heightFraction = if (isConnectTablet()) 0.66f else 0.70f
-                centerXFraction = 0.5f
-                topFraction = 0.10f
-            }
             setImageResource(
                 if (state == AyouConnectVisual.CONNECTING) R.drawable.ayou_character_connecting
                 else R.drawable.ayou_character_connected,

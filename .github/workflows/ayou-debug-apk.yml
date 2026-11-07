@@ -7,7 +7,7 @@ name: AYOU Debug APK
 on:
   workflow_dispatch:
   push:
-    branches: ['ayou-appearance']
+    branches: ['ayou-appearance', 'ayou-immersive']
 
 permissions:
   contents: read
@@ -46,9 +46,11 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'LauncherAyou' apps/mobile/android/app/src/main/AndroidManifest.xml
-          grep -q 'ayou_connecting' apps/mobile/android/app/src/main/java/io/github/sayach/dshmobile/MainActivity.kt
-          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_connecting.png
-          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_connected.png
+          grep -q 'AyouConnectVisual' apps/mobile/android/app/src/main/java/io/github/sayach/dshmobile/MainActivity.kt
+          test -f apps/mobile/android/app/src/main/java/io/github/sayach/dshmobile/AyouConnectViews.kt
+          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_room_scene.png
+          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_character_connecting.png
+          test -f apps/mobile/android/app/src/main/res/drawable-nodpi/ayou_character_connected.png
           echo "AYOU markers present"
 
       - name: Unit tests
